@@ -48,13 +48,17 @@ data.to_csv("examples_blast.mean.tab", sep=" ", index=False, header=False)
 ### 3 - Clustering the data using MCL
 This step will use the *examples_blast.mean.tab* generated before as input for the MCL commands.  
 1. mcxload
-`mcxload --stream-mirror -abc examples_blast.mean.tab -o examples.mci -write-tab examples.mci.tab`
+```bash
+mcxload --stream-mirror -abc examples_blast.mean.tab -o examples.mci -write-tab examples.mci.tab
+```
 
 Here, all the necessary entry files are generated from the *examples_blast.mean.tab*  
 
 2. mci
 
-`mcl examples.mci -I 2 -use-tab examples.mci.tab -o examples.cluster -te 8`
+```bash
+mcl examples.mci -I 2 -use-tab examples.mci.tab -o examples.cluster -te 8
+```
 
 Here we generate the final whole genome based clusters. The output is a simple .txt file in which each line is a cluster, and contains all the pahges in the cluster separetd by tab (\t)
 
