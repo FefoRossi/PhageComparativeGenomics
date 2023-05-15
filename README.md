@@ -181,9 +181,15 @@ proteins_df.to_csv("gene_to_genome.tsv", sep="\t", index=False)
 ```
 ### Protein Clusters assignment
 
-1. Clsuter assignment `cd-hit -i all_phages.fasta -o examples_protein_clusters.out -c 0.5 -aL 0.6 -n 2`
+1. Clsuter assignment 
+```bash
+cd-hit -i all_phages.fasta -o examples_protein_clusters.out -c 0.5 -aL 0.6 -n 2
+```
 
-2. Output processing `clstr2txt.pl examples_protein_clusters.out.clstr > examples_processed_clusters.tab`
+2. Output processing 
+```bash
+clstr2txt.pl examples_protein_clusters.out.clstr > examples_processed_clusters.tab
+```
 
 Now we will do our first clustering step, clsuter all proteins into protein families.
 ### Distance calculations
