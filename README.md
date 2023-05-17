@@ -85,7 +85,7 @@ with open("examples.cluster", "r") as c:
             tmp_cluster_list.append([f"cluster{count}", splitted_row])
             count+=1
 clusters_df = pd.DataFrame.from_records(tmp_cluster_list, columns=["Cluster", "Phage in cluster"])
-clusters_df = clusters_df.explode("Phages in cluster").reset_index(drop=True)
+clusters_df = clusters_df.explode("Phage in cluster").reset_index(drop=True)
 
 #########################
 ### Adding some color ###
@@ -198,10 +198,17 @@ In this process we will need the table *gene_to_genome.tsv* generated before, an
 ```python
 import pandas as pd
 import os
+import numpy as np
+from sklearn.metrics import pairwise_distances
+from scipy.cluster.hierarchy import dendrogram, linkage
+from Bio import Phylo
+from Bio import SeqIO
+import re
 
 #Reading cluster data
 cluster_out = pd.read_table("examples_processed_clusters.tab")
 cluster_out.rename(columns={"id":"Protein ID"}, inplace=True)
+cluster_out["ident"] = cluster_out["clstr_iden"].apply(lambda x: x.split("%")[0]).astype(float) #This line will transform the identites (here represented as strings) into float
 
 #Reading gene_to_genome file
 gene_2_genome = pd.read_table("gene_to_genome.tsv",usecols=["Phage ID", "Protein ID"])
@@ -209,6 +216,124 @@ gene_2_genome = pd.read_table("gene_to_genome.tsv",usecols=["Phage ID", "Protein
 #Merging datasets
 merged_data = pd.merge(cluster_out, gene_2_genome, on="Protein ID", how="left")
 
+#Creating the protein cluster matrix
+cluster_matrix = pd.pivot_table(merged_data,index="Phage ID", columns="clstr", values="ident").fillna(0)
+
+#Getting the all-against-all similarity network
+
+#1 transform our matrix into a numpy array
+matrix_to_array = cluster_matrix.to_numpy()
+#2 Get the labels for later
+labels = cluster_matrix.index.tolist()
+#3 Lets do the similarity calculation
+proteome_sim = 1-pairwise_distances(matrix_to_array, metric="braycurtis")
+#4 From the new similarity array, lets transform it back into a network-like table for clustering
+#We will use a temporary list (tmp_list) to hold on to our results from the loop
+tmp_list = []
+for i in range(proteome_sim.shape[0]):
+    for j in range(proteome_sim.shape[1]):
+        tmp_dict = {"source": labels[i], "target": labels[j], "ident":proteome_sim[i][j]}
+        tmp_list.append(tmp_dict)
+protein_sim_network = pd.DataFrame(tmp_list)
+protein_sim_network.to_csv("examples_proteome_sim_network.tab",
+                           sep="\t", index=False) #Lets save our network
 ```
+From this step, we are now able to run the MCI step (just like before) to assing our clsuters  
+
+### Clustering the data using MCL
+This step will use the *examples_proteome_sim_network.tab* generated before as input for the MCL commands.  
+1. mcxload
+```bash
+mcxload --stream-mirror -abc examples_proteome_sim_network.tab -o examples_proteome.mci -write-tab examples_proteome.tab
+```
+
+Here, all the necessary entry files are generated from the *examples_proteome_sim_network.tab*  
+
+2. mci
+
+```bash
+mcl examples_proteome.mci -I 2 -use-tab examples_proteome.tab -o examples_proteome.cluster -te 8
+```
+
+Here we generate the final shared-protein based clusters. The output is a simple .txt file in which each line is a cluster, and contains all the pahges in the cluster separetd by tab (\t)
+
+### 4 - Retrieving cluster information and plotting
+
+From the mci output *examples_proteome.cluster* and input *examples_proteome_sim_network.tab* we will generate a dataframe in python and from this generate a vizualization in python  
+
+```python
+import pandas as pd
+import networkx as nx
+from pyvis.network import Network
+import random
+
+###################################
+### Reading cluster information ###
+###################################
+
+tmp_cluster_list = []
+count = 1
+
+with open("examples_proteome.cluster", "r") as c:
+    for row in c:
+            splitted_row = row.strip().split("\t")
+            tmp_cluster_list.append([f"cluster{count}", splitted_row])
+            count+=1
+clusters_df = pd.DataFrame.from_records(tmp_cluster_list, columns=["Cluster", "Phage in cluster"])
+clusters_df = clusters_df.explode("Phage in cluster").reset_index(drop=True)
+
+#########################
+### Adding some color ###
+#########################
+
+## --> The colors generated are random <-- ##
+
+clusters = clusters_df["Cluster"].unique().tolist()
+
+number_of_colors = len(clusters)
+
+color = ["#"+''.join([random.choice('0123456789ABCDEF') for j in range(6)])
+             for i in range(number_of_colors)]
+
+cluster_colors = dict(zip(clusters, color))
+colors_df = pd.DataFrame.from_dict(cluster_colors, orient="index").reset_index()
+
+colors_df.rename(columns={"index":"Cluster", 0:"color"}, inplace=True)
+
+### Creating the final dataframe with colors ###
+
+with_color_df = pd.merge(clusters_df, colors_df, on="Cluster", how="left")
+
+## Saving data
+with_color_df.to_csv("example_proteome_clusters_colors.csv", index=False)
+
+## Finishing creating the dictionary to color our network ##
+
+nodes_attr = with_color_df.set_index("Phage in cluster").to_dict(orient="index")
+
+########################
+### Plotting Network ###
+########################
+
+network_data = pd.read_csv("examples_proteome_sim_network.tab", sep="\t", names=["source", "target", "ident"])
+
+G = nx.from_pandas_edgelist(network_data,
+                            source="source",
+                            target="target",
+                            edge_attr="ident"
+                            )
+G.remove_edges_from(nx.selfloop_edges(G))
+nx.set_node_attributes(G,nodes_attr)
+
+net = Network(notebook=True)
+net.from_nx(G)
+
+net.save_graph("examples_proteome_network.html")
+```
+With that done, we now have a interactive network in .html
+
+![network_view](examples_network_names.png)
+
+This rendered network was colored by clsuter, so each color represents a different cluster, the nodes represent all phages analyzed and edges representes how they are conected based on similarity.
 
 ## UNDER CONSTRUCTION 
