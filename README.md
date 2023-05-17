@@ -332,7 +332,7 @@ net.save_graph("examples_proteome_network.html")
 ```
 With that done, we now have a interactive network in .html
 
-![network_view](examples_network_names.png)
+![network_view](examples_proteome.png)
 
 This rendered network was colored by clsuter, so each color represents a different cluster, the nodes represent all phages analyzed and edges representes how they are conected based on similarity.
 
