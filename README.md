@@ -144,7 +144,7 @@ This rendered network was colored by clsuter, so each color represents a differe
 
 ## Using predicted proteome similarity
 
-For this analysis we will be using the predicted proteins from the **Annotation** step.  
+For this analysis we will be using the predicted proteins from the [Annotation](#cds-prediction) step.  
 Firstly, prokka generates folder for each annotation, and so we need to recover all the *.faa* files.  
 For this, from the folder where all prokka resulting folder are we:  
 1. create new folder to hold the data `mkdir predicted_proteins`
@@ -192,7 +192,7 @@ clstr2txt.pl examples_protein_clusters.out.clstr > examples_processed_clusters.t
 ```
 
 Now we will do our first clustering step, clsuter all proteins into protein families.
-### Distance calculations
+### Distance calculation
 In this process we will need the table *gene_to_genome.tsv* generated before, and the *examples_processed_clusters.tab*  
 
 ```python
