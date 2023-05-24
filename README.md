@@ -3,7 +3,90 @@
 The provided dataset comprises the viral genus Abidjanvirus and Phifelvirus, with 6 and 7 genomes of complete phages respectively  
 File --> `examples.fasta`
 
+First, lets understand our dataset of phages. We have in total 13 phage genomes from 2 families.  
+
+Lets create a simple table contaning phage ID, genome size and GC% content.  
+
+>**Warning**
+>Before starting please install Biopython --> `pip3 install biopython`  
+
+```python
+import pandas as pd
+from Bio import SeqIO
+from Bio.SeqUtils import GC
+import os
+
+#Lets create one variable with the full path for the folder contaning our data and one with the full path to the fasta file
+
+fasta_folder = "path/to/folder/"
+fasta_file = "path/to/folder/examples.fasta"
+
+#Before starting to collect information we should create a variable to store the data. Here we will create an empty list.
+
+phage_metadata = []
+
+#Now lets create a loop, that will iterate through our file and get the genome size and GC information to store in our phage_metadata list variable
+
+for phage in SeqIO.parse(fasta_file, "fasta"):
+    phage_metadata.append([phage.id, len(str(phage.seq)), GC(phage.seq)])
+
+#Lastly we can create a dataframe and save as a csv/tsv file
+
+phage_dataframe = pd.DataFrame.from_records(phage_metadata, columns=["Phage ID", "Genome len", "GC%"])
+
+#Sorting data
+phage_dataframe.sort_values(by="GC%", ascending=False, inplace=True)
+
+#Before saving lets create a variable with the desired output path and file name
+metadata_output = os.path.join(fasta_folder, "Phage_metadata.tsv")
+
+#Saving data
+phage_dataframe.to_csv(metadata_output, index=False)
+```
+This is a simple example of what can be done as preliminary/exploratory analysis for phage genomes.  
+
+For CDS prediction and annoatation, both tools [PROKKA](#prokka-cds-prediction-and-annotation) and [Pharokka](#pharokka-cds-prediction-and-annotation) requires a fasta file for each genome analyzed, so we will split the file **examples.fasta** in 13 fasta files.  
+
+>**Note**
+>In this script we will also rename all phages for better visualization  
+>For this we will use the provided file *example_phages.xlsx*  
+
+```python
+import pandas as pd
+from Bio import SeqIO
+import os
+
+#Lets create one variable with the full path for the folder contaning our data, one with the full path to the fasta file and one with the full path for the excel file
+
+fasta_folder = "path/to/folder/"
+fasta_file = "path/to/folder/examples.fasta"
+excel_file = "path/to/folder/example_phages.xlsx"
+
+example_phages = pd.read_excel(excel_file, usecols=["Accession", "Description"])
+
+#Creating a dictionary with "old" phage name as key and "new" phage name as value
+
+phage_dict = dict(zip(example_phages["Accession"], example_phages["Description"]))
+
+#Now lets create a loop, that will iterate through our file and create new files for each genome
+for phage in SeqIO.parse(fasta_file, "fasta"):
+    sequence = str(phage.seq)
+    id = phage_dict[phage.id]
+    phage_name = id.split(" ")[-1]
+    #Before saving lets create a variable with the desired output path
+    output = os.path.join(fasta_folder,f"{phage_name}.fasta")
+    with open(output, "w") as file:
+        file.write(f">{id}\n{sequence}\n")
+```
+
+With that done we can start our analysis.  
 ## CDS prediction
+
+### PROKKA CDS prediction and annotation
+
+
+
+### Pharokka CDS prediction and annotation
 
 ## ANI and AAI
 
@@ -145,12 +228,14 @@ This rendered network was colored by clsuter, so each color represents a differe
 ## Using predicted proteome similarity
 
 For this analysis we will be using the predicted proteins from the [Annotation](#cds-prediction) step.  
-Firstly, prokka generates folder for each annotation, and so we need to recover all the *.faa* files.  
-For this, from the folder where all prokka resulting folder are we:  
-1. create new folder to hold the data `mkdir predicted_proteins`
-2. copy all files to new folder `find . -name '*.faa' -exec cp --target-directory=predicted_proteins {} \;`
-3. change to the new directory `cd predicted_proteins`
-4. concatenate all files to a single file `cat *.faa > all_proteins.fasta`
+
+>**Note**
+>Prokka generates folder for each annotation, and so we need to recover all the *.faa* files.  
+>For this, from the folder where all prokka resulting folder are, we:  
+>1. create new folder to hold the data `mkdir predicted_proteins`
+>2. copy all files to new folder `find . -name '*.faa' -exec cp --target-directory=predicted_proteins {} \;`
+>3. change to the new directory `cd predicted_proteins`
+>4. concatenate all files to a single file `cat *.faa > all_proteins.fasta`
 
 ### Pre-processing
 
