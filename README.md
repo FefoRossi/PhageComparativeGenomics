@@ -43,13 +43,28 @@ metadata_output = os.path.join(fasta_folder, "Phage_metadata.tsv")
 #Saving data
 phage_dataframe.to_csv(metadata_output, index=False)
 ```
+As a result we have:  
+
+|               Phage ID              | Genome len |    GC%    |
+|:-----------------------------------:|:----------:|:---------:|
+|       Pseudomonas_phage_PaMx11      |    59878   | 64.452721 |
+|   Pseudomonas_phage_AIIMS-Plu-RaNi  |    46647   | 64.452162 |
+| Pseudomonas_phage_vB_PaeS_PAO1_Ab18 |    56537   | 63.498240 |
+| Pseudomonas_phage_vB_PaeS_PAO1_Ab20 |    57745   | 63.475626 |
+|        Pseudomonas_phage_ZC01       |    57061   | 63.391809 |
+| Pseudomonas_phage_vB_PaeS_PAO1_Ab19 |    58139   | 63.303462 |
+|      Enterococcus_phage_phiFL2A     |    36270   | 34.607113 |
+|      Enterococcus_phage_phiFL2B     |    36826   | 34.573399 |
+|      Enterococcus_phage_phiFL3A     |    39576   | 34.546190 |
+|      Enterococcus_phage_phiFL3B     |    40275   | 34.497827 |
+|      Enterococcus_phage_phiFL1C     |    38721   | 34.022882 |
+|      Enterococcus_phage_phiFL1A     |    38764   | 34.013518 |
+|      Enterococcus_phage_phiFL1B     |    38989   | 33.978815 |  
+
+
 This is a simple example of what can be done as preliminary/exploratory analysis for phage genomes.  
 
 For CDS prediction and annoatation, both tools [PROKKA](#prokka-cds-prediction-and-annotation) and [Pharokka](#pharokka-cds-prediction-and-annotation) requires a fasta file for each genome analyzed, so we will split the file **examples.fasta** in 13 fasta files.  
-
->**Note**
->In this script we will also rename all phages for better visualization  
->For this we will use the provided file *example_phages.xlsx*  
 
 ```python
 import pandas as pd
@@ -60,19 +75,12 @@ import os
 
 fasta_folder = "path/to/folder/"
 fasta_file = "path/to/folder/examples.fasta"
-excel_file = "path/to/folder/example_phages.xlsx"
-
-example_phages = pd.read_excel(excel_file, usecols=["Accession", "Description"])
-
-#Creating a dictionary with "old" phage name as key and "new" phage name as value
-
-phage_dict = dict(zip(example_phages["Accession"], example_phages["Description"]))
 
 #Now lets create a loop, that will iterate through our file and create new files for each genome
 for phage in SeqIO.parse(fasta_file, "fasta"):
     sequence = str(phage.seq)
-    id = phage_dict[phage.id]
-    phage_name = id.split(" ")[-1]
+    id = phage.id
+    phage_name = id
     #Before saving lets create a variable with the desired output path
     output = os.path.join(fasta_folder,f"{phage_name}.fasta")
     with open(output, "w") as file:
@@ -84,6 +92,116 @@ With that done we can start our analysis.
 
 ### PROKKA CDS prediction and annotation
 
+First visit the [Prokka](https://github.com/tseemann/prokka) github page to install it.  
+
+#### Database download and formating
+
+Then, lets download the [PHROGS](https://phrogs.lmge.uca.fr/) database.  
+
+```bash
+#Downloading the database
+wget https://phrogs.lmge.uca.fr/downloads_from_website/MSA_phrogs.tar.gz
+#Unzip the downloaded folder
+tar -xvzf MSA_phrogs.tar.gz
+#Enter the folder and generate hmm profiles from the alignment (MSA) files (this takes a few minutes)
+cd MSA_Phrogs_M50_FASTA
+for i in *.fma;do base_name=${i%%.*}; hmmbuild ${base_name}.hmm $i;done
+#With that done we concatenate all .hmm files
+cat *.hmm > PHROGS.hmm
+#Generate HMMER database files
+hmmpress PHROGS_db.hmm
+
+#Lastly, we will download the annotation table to use later
+wget https://phrogs.lmge.uca.fr/downloads_from_website/phrog_annot_v4.tsv
+```
+>With that done we will have four files created:
+>Models pressed into binary file:   PHROGS.hmm.h3m  
+>SSI index for binary model file:   PHROGS.hmm.h3i  
+>Profiles (MSV part) pressed into:  PHROGS.hmm.h3f  
+>Profiles (remainder) pressed into: PHROGS.hmm.h3p  
+
+>**Note**  
+>With the step above finished, all the input and intermediate files can be deleted  
+>`rm *.fma` and `rm phrog_*.hmm`  
+>With this, the final files sums 7GB of storage  
+
+The resulting database should be in the folder **~/MSA_Phrogs_M50_FASTA/PHROGS.hmm**  
+#### PROKKA run
+
+In this step we will start the gene identification and annotation usig PROKKA 
+To get easy to understand and manipulate output files we will use the *--locustag* and *--prefix* flags with the same value, the phage ID!  
+
+***IMPORTANT: We are working with viral genomes, reameber to use the --kingdom flag with 'Viruses' as value!***  
+
+1. Simple run:
+```bash
+prokka --locustag ZC01 --prefix ZC01 --kingdom Viruses --fast ZC01.fasta
+```
+2. We can also predict all genes from all phages with a single *for loop*:  
+```bash
+for file in *.fasta;do phage_id=${file%%.*}; prokka --locustag $phage_id --prefix $phage_id --kingdom Viruses --fast $file;done
+#After gene prediction we can recover all *.faa files to a single folder
+mkdir CDS_folder
+find . -name '*.faa' -exec cp --target-directory=CDS_folder {} \;
+```
+>**Warning**  
+>The *find* command will look for all *.faa files in the current folder, if you have other *.faa files they will also be copied to the CDS_folder folder  
+
+#### Annotation with PHROGS
+
+For the annotation of all CDS predicted we will use the previously generated HMM [database](#database-download-and-formating)  
+
+Like in the PROKKA step, we can run the analysis for all .faa files at a *for loop*:  
+>**Note**  
+>After all program options we provide (in this order) the hmm database (~/MSA_Phrogs_M50_FASTA/PHROGS.hmm) and the file to be annotated  
+
+```bash
+#First lets navigate to the CDS_folder
+cd CDS_folder
+#Now we will create the loop
+for file in *.faa;do phage_id=${file%%.*}; hmmscan -o ${phage_id}.out.PHROGS --tblout ${phage_id}.hmm.results --noali -E 1e-5 ~/MSA_Phrogs_M50_FASTA/PHROGS.hmm $file;done
+```
+With that done, we will parse the results using python:  
+```python
+import pandas as pd
+import os
+
+hmm_results_folder = "path/to/.hmm.results"
+annot_table_path = "path/to/downloaded/phrog_annot_v4.tsv"
+
+annot_table = pd.read_table(annot_table_path,dtype=str)
+
+for result in os.listdir(hmm_results_folder):
+    if result.endswith(".hmm.results"):
+        #First lets get the id for all predicted CDS
+        phage_id = result.split(".")[0]
+        faa_file = os.path.join(hmm_results_folder, f"{phage_id}.faa")
+        ids_list = [IDs.id for IDs in SeqIO.parse(faa_file, "fasta")]
+        cds_df = pd.DataFrame({"Query Name": ids_list})
+
+        #Now we will create the hammer results dataset
+        hmmer_header = ["Target Name", "Query Name", "E-value", "Score", "Bias"]
+        data = os.path.join(hmm_results_folder, result)
+        hmmer_df = pd.read_csv(data, comment="#", delimiter=r"\s+", names=hmmer_header, usecols=[0,2,4,5,6])
+        hmmer_df.sort_values(by="E-value", ascending=True, inplace=True)
+        hmmer_df.drop_duplicates(subset="Query Name" ,keep="first", inplace=True)
+        hmmer_df["index"] = hmmer_df.apply(lambda x: int(x["Query Name"].rpartition("_")[2]), axis=1)
+        hmmer_df.sort_values(by="index", inplace=True)
+        hmmer_df["phrog"] = hmmer_df["Target Name"].apply(lambda x: x.replace("phrog_", ""))
+        
+        #And join with the annotation table by the "phrog" column
+        anntoated_df = pd.merge(hmmer_df, annot_table, on="phrog", how="left")
+
+        #lastly, join with the CDS ids, and fill the missing values with "Hypothetical protein"
+        anntoated_df = pd.merge(cds_df,anntoated_df, on="Query Name", how="left").fillna({"color": "#c9c9c9", 
+                                                                                          "annot": "Hypothetical protein", 
+                                                                                          "category" : "unknown function"})
+        #Generating a table for each annotated phage genome -- We will save the annotation tables in the hmm results folder
+        output_table = os.path.join(hmm_results_folder, f"{phage_id}.annot.tsv")
+        anntoated_df.to_csv(output_table, sep="\t", index=False)
+```
+>**Note**  
+>The *"color"* columns will be important later for genomic visualization  
 
 
 ### Pharokka CDS prediction and annotation
@@ -203,7 +321,7 @@ nodes_attr = with_color_df.set_index("Phage in cluster").to_dict(orient="index")
 ### Plotting Network ###
 ########################
 
-network_data = pd.read_csv("examples_blast.mean.tab", sep="\t", names=["source", "target", "ident"])
+network_data = pd.read_csv("examples_blast.mean.tab", sep=" ", names=["source", "target", "ident"])
 
 G = nx.from_pandas_edgelist(network_data,
                             source="source",
@@ -268,7 +386,7 @@ proteins_df.to_csv("gene_to_genome.tsv", sep="\t", index=False)
 
 1. Clsuter assignment 
 ```bash
-cd-hit -i all_phages.fasta -o examples_protein_clusters.out -c 0.5 -aL 0.6 -n 2
+cd-hit -i all_phages.fasta -o examples_protein_clusters.out -d 100 -c 0.5 -aL 0.6 -n 2
 ```
 
 2. Output processing 
