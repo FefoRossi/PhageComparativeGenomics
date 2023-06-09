@@ -206,6 +206,106 @@ for result in os.listdir(hmm_results_folder):
 
 ### Pharokka CDS prediction and annotation
 
+Pharokka can be easily installed using conda. We recommend creating a conda enviroment first.  
+
+```bash
+conda create -n pharokka-env
+conda activate pharokka-env
+
+conda install -c bioconda pharokka -y
+
+#After instalation install all databases from the pharokka directory
+#To easily find the pharokka directory:
+
+which pharokka.py
+
+#Go to the pharokka directory
+cd ~/anaconda3/envs/pharokka-env/bin/
+
+./install_databases.py
+```
+After installation we are all set to start our phage annotations  
+
+Lets start with a single genome:  
+
+```bash
+conda activate pharokka-env
+
+pharokka.py -i ZC01.fasta -t 6 -l ZC01 -p ZC01 -f -o ZC01_pharokka
+```
+The main output is the ZC01_cds_final_merged_output.tsv, this file contains all of the information about the annotation run, includding all found PHROGs, CARD resistence genes and Virulence genes. 
+
+Pharokka also outputs other important information:  
+1. `ZC01_cds_functions.tsv` contains the general inforamtion about the functional categories found  
+2. `phanotate.faa` contains all of the predicted **proteins**, found by PHANOTATE  
+3. `phanotate.ffn` contains all of the predicted **genes**, found by PHANOTATE  
+4. `terL.faa/.ffn` contains (if found) the Terminase Large subunit gene  
+5. `ZC01.gbk` contains all of the annotated informatin in the NCBI *GBK* format  
+6. `ZC01.tbl` contains all of the annotated informatin in the NCBI *feature table* format  
+
+Like in the [PROKKA](#prokka-cds-prediction-and-annotation) example, we can run a *loop* for all phage genomes  
+
+```bash
+for file in *.fasta;do phage_id=${file%%.*}; pharokka.py -i $file -t 4 -l $phage_id -p $phage_id -f -o ${phage_id}_pharokka;done
+```
+With that done we can recover all of the .faa files  
+
+>**Warning**  
+>Pharokka will always generate the output files with the same name *phanotate.faa*  
+>To adress that and rename all files for later use we created the sctipt bellow  
+
+From the folder containing all pharokka output folder:  
+
+>**Note**  
+>For this script to work, the pharokka output folder **must** contain *_pharokka* in the folder name!  
+>The script takes the phage name that comes before *_pharokka* in the folder to rename the *phanotate.faa* files correctly  
+
+```python
+import os
+import shutil
+
+#First we create the folder that will recieve all of the annotated genomes
+#Check if the folder we are about to create already exists and then creates it
+
+main_folder = "path/to/main/folder"
+
+faa_folder = os.path.join(main_folder, "pharokka_faa_output")
+
+if not os.path.exists(faa_folder):
+    print(f"folder {faa_folder} dont exist, creating...")
+    os.mkdir(faa_folder)
+
+for dir_name in os.scandir(main_folder):
+    if dir_name.is_dir():
+        if "_pharokka" in dir_name.path:
+            dir = dir_name.path.split("/")[-1]
+            phage_name = dir.replace("_pharokka", "")
+            annotation_path = os.path.join(dir_name.path, "phanotate.faa")
+            new_annot_path = os.path.join(dir_name.path, f"{phage_name}.faa")
+            print(f"Changing {annotation_path} --> {new_annot_path}")
+            #Renaming files
+            os.rename(annotation_path, new_annot_path)
+            #Moving files
+            shutil.copy(new_annot_path, faa_folder)
+
+```
+
+#### Pharokka genome plot
+
+Pharokka provides an easy to use plotting script, for plotting your genome simply run the following command:  
+
+>**Important**  
+>It is importante to notice that the *-p* flag **MUST** match the prefix (-p) used in the annotation step  
+>Also, the output provided in *-o* **MUST** also be the same as the one already generated in the annotation step  
+
+```bash
+pharokka_plotter.py -i ZC01.fasta -t "Phage ZC01" -n ZC01_plot -p ZC01 -o ZC01_pharokka/
+```
+
+The resulting plot:  
+
+![Pharokka_plot](ZC01_plot.png)
+
 ## ANI and AAI
 
 ## Clustering analysis
