@@ -716,7 +716,39 @@ nk = get_newick(tree, tree.dist, labels)
 #With that done we can simply save our tree and plot it using FigTree
 with open("path/to/save/phages_tree.nwk", "w") as file:
     file.write(nk)
+
+#After saving it we can plot a simple Tree using pycirclize
+#Instalation is simple --> pip install pycirclize
+
+from pycirclize import Circos
+from io import StringIO
+from Bio import Phylo
+
+#Our Tree data was generated in the variable "nk"
+
+tree = Phylo.read(StringIO(nk), "newick")
+
+circos = Circos(sectors={"Tree": tree.count_terminals()})
+sector = circos.sectors[0]
+
+track = sector.add_track((30, 100))
+#If you wish to use the branch leanth information, simply change it to True
+track.tree(tree, leaf_label_size=13,use_branch_length=False)
+
+fig = circos.plotfig()
+plt.savefig("/path/to/save/phages_pycircle_tree.png",
+            dpi=300, facecolor="w")
 ```
-### SHOW the FigTree tool and plot!
+
+The resulting tree separates Pseudomonas and Eneterococcus phages and allows us to visualize thier similarity distribution.  
+
+![Phage_tree](phages_pycircle_tree.png)
+
+>Instead of python the tool **FigTree** can be used for plotting the tree from the newick file.  
+
+## Analysing shared proteins between phages
+
+
+## In the core-phylo step -->  It is important to note that, seqkit concatenate sequences that have the same header, so for each file of protein-cluster retrieved, the sequences for each phage must have the same header (BOTAR NO GIT) seqkit concat *.core.fasta > concat_core_prots.faa.
 
 ## UNDER CONSTRUCTION 
