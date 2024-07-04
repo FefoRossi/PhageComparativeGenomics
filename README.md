@@ -748,11 +748,8 @@ The resulting tree separates Pseudomonas and Eneterococcus phages and allows us 
 
 In this step we will use a matrix of presence and abscence of proteins, to visualize phage protein sharing patterns with an [**UpsetPlot**](https://upsetplot.readthedocs.io/en/stable/).  
 
+### Upsetplot
 ```python
-import pandas as pd
-from Bio import SeqIO
-import os
-
 #read protein-clusters data
 
 #CD-HIT out
@@ -775,6 +772,29 @@ pseudomonas_data = merged_data[merged_data["Phage ID"].isin(pseudomonas_phages)]
 
 #Making the presence and abscence matrix
 presence_abscence_matrix = pseudomonas_data.pivot_table("COUNT",index="Phage ID",columns="clstr").fillna(0)
+
+#Creating the dataframe for the upsetplot
+
+upset_plot_df = presence_abscence_matrix == 1
+upset_plot_df = upset_plot_df.value_counts()
+
+#Plotting
+up_plot = UpSet(upset_plot_df, show_counts=True, intersection_plot_elements=7).plot()
+plt.title("Pseudomonas phages shared proteins", fontsize=30)
+
+plt.savefig("path/to/file.png",
+            dpi=300, facecolor="w")
+```
+The result:
+
+![upsetplot](PAs_upset.png)  
+
+In this plot we observed 54 core proteins, with the next step we can filter those proteins from the matrix (**presence_abscence_matrix**) and from the fasta (**all_phages.fasta**) for phylogenetic analysis.  
+
+```python
+import pandas as pd
+from Bio import SeqIO
+import os
 
 #Getting core proteins!
 core = presence_abscence_matrix.loc[:,(presence_abscence_matrix == 1).all()]
@@ -810,7 +830,7 @@ for cluster in core_prot["clstr"].unique():
 
 >In the core-phylo step -->  It is important to note that, seqkit concatenate sequences that have the same header, so for each file of protein-cluster retrieved, the sequences for each phage must have the same header! 
 
-With all core proteins files done we can use the [seqkit]() tool to concatenate all core proteinas for each phage.  
+With all core proteins files done we can use the [seqkit](https://bioinf.shenwei.me/seqkit/) tool to concatenate all core proteinas for each phage.  
 
 ```bash
 seqkit concat *.core.fasta > concat_core_prots.faa
