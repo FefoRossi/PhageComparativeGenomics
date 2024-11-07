@@ -678,6 +678,9 @@ array = cluster_matrix.to_numpy()
 #2 the labels
 labels = cluster_matrix.index.tolist()
 
+#3 Lets do the similarity calculation
+proteome_sim = 1-pairwise_distances(matrix_to_array, metric="braycurtis")
+
 #With that done we can make our tree!
 #1 first thing is to create a function to transform the python dendrogram tree into a newik formated tree
 
@@ -705,7 +708,7 @@ def get_newick(node, parent_dist, leaf_names, newick='') -> str:
 #This function takes the dendrogram tree and labels, and reformat it to a newik format
 
 #Then we simply calculate the dendrogram:
-Z = sch.linkage(sim_dist, method ='ward')
+Z = linkage(proteome_sim, method ='ward')
 #Creates a tree from it
 tree = hierarchy.to_tree(Z, False)
 #And apply our function to get the newik tree
@@ -731,7 +734,7 @@ sector = circos.sectors[0]
 
 track = sector.add_track((30, 100))
 #If you wish to use the branch leanth information, simply change it to True
-track.tree(tree, leaf_label_size=13,use_branch_length=False)
+track.tree(tree, leaf_label_size=13)
 
 fig = circos.plotfig()
 plt.savefig("/path/to/save/phages_pycircle_tree.png",
@@ -751,6 +754,7 @@ In this step we will use a matrix of presence and abscence of proteins, to visua
 ### Upsetplot
 ```python
 #read protein-clusters data
+from upsetplot import UpSet
 
 #CD-HIT out
 
@@ -778,6 +782,13 @@ presence_abscence_matrix = pseudomonas_data.pivot_table("COUNT",index="Phage ID"
 upset_plot_df = presence_abscence_matrix == 1
 upset_plot_df = upset_plot_df.value_counts()
 
+##############################################################
+## If the plot is reversed (i.e you have the genes as rows) ##
+##############################################################
+upset_plot_df = presence_abscence_matrix == 1
+upset_plot_df = upset_plot_df.T
+upset_plot_df = upset_plot_df.value_counts()
+
 #Plotting
 up_plot = UpSet(upset_plot_df, show_counts=True, intersection_plot_elements=7).plot()
 plt.title("Pseudomonas phages shared proteins", fontsize=30)
@@ -790,6 +801,8 @@ The result:
 ![upsetplot](PAs_upset.png)  
 
 In this plot we observed 54 core proteins, with the next step we can filter those proteins from the matrix (**presence_abscence_matrix**) and from the fasta (**all_phages.fasta**) for phylogenetic analysis.  
+
+### Getting core proteins for analysis
 
 ```python
 import pandas as pd
@@ -836,4 +849,13 @@ With all core proteins files done we can use the [seqkit](https://bioinf.shenwei
 seqkit concat *.core.fasta > concat_core_prots.faa
 ```
 
+With the concatenated core proteins fasta file we can align all sequences using [MAFFT](https://mafft.cbrc.jp/alignment/software/linuxportable.html).
+
+>Quick install with `sudo apt install mafft`  
+
+
+
+```bash
+mafft 
+```
 ## UNDER CONSTRUCTION 
