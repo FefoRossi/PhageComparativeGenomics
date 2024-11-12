@@ -447,8 +447,9 @@ This rendered network was colored by clsuter, so each color represents a differe
 
 For this analysis we will be using the predicted proteins from the [Annotation](#cds-prediction) step.  
 
->**Note**
->Prokka generates folder for each annotation, and so we need to recover all the *.faa* files.  
+>**Note**  
+>To separate the multi-fasta file provided use `cat examples.fasta | awk '{if (substr($0, 1, 1)==">") {filename=(substr($0,2) ".fa")} print $0 > filename}'`  
+>Prokka generates a folder for each annotation, and so we need to recover all the *.faa* files.  
 >For this, from the folder where all prokka resulting folder are, we:  
 >1. create new folder to hold the data `mkdir predicted_proteins`
 >2. copy all files to new folder `find . -name '*.faa' -exec cp --target-directory=predicted_proteins {} \;`
@@ -486,13 +487,15 @@ proteins_df.to_csv("gene_to_genome.tsv", sep="\t", index=False)
 
 1. Clsuter assignment 
 ```bash
-cd-hit -i all_phages.fasta -o examples_protein_clusters.out -d 100 -c 0.5 -aL 0.6 -n 2
+cd-hit -i all_proteins.fasta -o examples_protein_clusters.out -d 100 -c 0.5 -aL 0.6 -n 2
 ```
 
 2. Output processing 
 ```bash
 clstr2txt.pl examples_protein_clusters.out.clstr > examples_processed_clusters.tab
 ```
+
+>clstr2txt.pl can be found at [github](https://github.com/weizhongli/cdhit/tree/master)  
 
 Now we will do our first clustering step, clsuter all proteins into protein families.
 ### Distance calculation
@@ -822,7 +825,7 @@ core_prot = merged_data[merged_data["clstr"].isin(core_clust_list)]
 #This is important for the concatenation step!
 
 #First direct the fasta file with all proteins (generated above)
-all_pahges = "path/to/all_phages.fasta"
+all_pahges = "path/to/all_proteins.fasta"
 output_core = "path/to/output/folder"
 
 for cluster in core_prot["clstr"].unique():
@@ -856,6 +859,52 @@ With the concatenated core proteins fasta file we can align all sequences using 
 
 
 ```bash
-mafft 
+mafft concat_core_prots.faa > concat_core_prots.aln
 ```
+
+After the MAFFT run we will use FastTree for [Maximum likelihood](https://www.sciencedirect.com/topics/nursing-and-health-professions/maximum-likelihood-method#:~:text=Maximum%20Likelihood%20Method%20is%20a,other%20methods%20like%20maximum%20parsimony.) phylogenetic calculation.  
+
+>Quick install with `conda install bioconda::fasttree`  
+
+```bash
+fasttree -log tree_log.txt -wag -fastest -gamma concat_core_prots.aln > concat_core_prots.nwk
+```
+
+The results can be easily plotted using [FigTree](http://tree.bio.ed.ac.uk/software/figtree/)! But we can use python as well to create some cool visualizations.  
+
+The first step is to take the results from [Protein Clusters assignment](#protein-clusters-assignment) of all similarities found between phages (based on predicted proteome).  
+```python
+import pandas as pd
+#Data from the protein cluster assignment:
+# proteome_sim
+# labels
+
+similarity_dataframe = pd.DataFrame(proteome_sim, columns=labels, index=labels)
+
+#Here we will focus the analysis on phage ZC01
+#So lets get all similarities against ZC01
+
+zc01_sim = similarity_df.loc[:, "ZC01"].reset_index()
+```
+The second step is to identify unique genes (other analysis can be done here) on each phage genome. Using the [clustered proteins output](#protein-clusters-assignment) step.  
+
+```python
+cluster_out = pd.read_table("path/to/examples_processed_clusters.tab")
+cluster_out.rename(columns={"id":"Protein ID"}, inplace=True)
+cluster_out["ident"] = cluster_out["clstr_iden"].apply(lambda x: x.split("%")[0]).astype(float)
+
+gene_2_genome = pd.read_table("path/to/gene_to_genome.tsv", usecols=["Phage ID", "Protein ID"])
+
+merged_data = pd.merge(gene_2_genome, cluster_out, on="Protein ID", how="left")
+merged_data["COUNT"] = 1
+
+unique_counts = merged_data[merged_data["clstr_size"] == 1].groupby("Phage ID").agg({"COUNT":"sum"})
+```
+
+And lastly we can plot both the phylogenetic tree, ZC01 similarity distribution and unique gene counts for each phage in this analysis.  
+
+```python
+
+```
+
 ## UNDER CONSTRUCTION 
