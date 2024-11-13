@@ -882,9 +882,6 @@ import pandas as pd
 similarity_dataframe = pd.DataFrame(proteome_sim, columns=labels, index=labels)
 
 #Here we will focus the analysis on phage ZC01
-#So lets get all similarities against ZC01
-
-zc01_sim = similarity_df.loc[:, "ZC01"].reset_index()
 ```
 The second step is to identify unique genes (other analysis can be done here) on each phage genome. Using the [clustered proteins output](#protein-clusters-assignment) step.  
 
@@ -904,7 +901,82 @@ unique_counts = merged_data[merged_data["clstr_size"] == 1].groupby("Phage ID").
 And lastly we can plot both the phylogenetic tree, ZC01 similarity distribution and unique gene counts for each phage in this analysis.  
 
 ```python
+#Starting the Phylo tree
+from pycirclize import Circos
+from pycirclize.utils import load_example_tree_file, ColorCycler
+from matplotlib.lines import Line2D
+import matplotlib.pyplot as plt
 
+
+tree_file = "/path/to/concat_core_prots.nwk"
+circos, tv = Circos.initialize_from_tree(
+    tree_file,
+    start=10,
+    end=350,
+    r_lim=(30, 70),
+    leaf_label_size=10,
+    line_kws=dict(color="grey", lw=1.5),leaf_label_rmargin=32,
+    ignore_branch_length=True
+)
+
+#Lets save the order of each phage on the tree for later
+index_order = tv.leaf_labels
+
+#Now we will initialize a color scheme for the branches -- Here I will color only the ZC01 phage
+group_name2species_list = dict( lab_phages=["ZC01"])
+
+#If you have different color for phage species or other color schemes follow this model
+# group_name2species_list = dict(
+#     Monotremata=["Tachyglossus_aculeatus", "Ornithorhynchus_anatinus"],
+#     Marsupialia=["Monodelphis_domestica", "Vombatus_ursinus"],
+#     Xenarthra=["Choloepus_didactylus", "Dasypus_novemcinctus"],
+#     Afrotheria=["Trichechus_manatus", "Chrysochloris_asiatica"],
+#     Euarchontes=["Galeopterus_variegatus", "Theropithecus_gelada"],
+#     Glires=["Oryctolagus_cuniculus", "Microtus_oregoni"],
+#     Laurasiatheria=["Talpa_occidentalis", "Mirounga_leonina"],
+# )
+
+#Coloring the tree
+ColorCycler.set_cmap("tab10")
+group_name2color = {name: ColorCycler() for name in group_name2species_list.keys()}
+
+for group_name, species_list in group_name2species_list.items():
+    color = group_name2color[group_name]
+    tv.set_node_line_props(species_list, color=color, apply_label_color=True)
+
+#Now using the "unique_counts" generated above we will plot a barplot alongside the tree
+
+#Barplot
+count_data = pd.DataFrame(index=tv.leaf_labels)
+count_data["COUNT"] = count_data.index.map(dict(zip(unique_counts.index, unique_counts["COUNT"].values))).fillna(0)
+
+sector = tv.track.parent_sector
+bar_track = sector.add_track((85, 100), r_pad_ratio=0.1)
+bar_track.axis()
+bar_track.grid()
+x = np.arange(0, tv.leaf_num) + 0.5
+y = count_data["COUNT"].to_numpy()
+bar_track.bar(x, y, width=0.5, color="orange")
+circos.text("Unique\ngenes", r=bar_track.r_center, color="orange")
+
+#Lastly we will plot the heatmaps of each desired phage -- Here only for the ZC01
+
+# Plot heatmaps (from `ZC01` column data)
+#Adjusting the index to match the tree order
+sim_df_adjusted = similarity_df.reindex(index_order)
+#Adding track
+track1 = sector.add_track((80, 85))
+track1.heatmap(sim_df_adjusted["ZC01"].to_numpy(), cmap="summer", show_value=True, rect_kws=dict(ec="grey", lw=0.5))
+circos.text("ZC01\nsimilarity", r=track1.r_center, color="green")
+
+fig = circos.plotfig()
+
+#Saving the tree
+plt.savefig("path/to/figure.png", dpi=300, facecolor="w")
 ```
+
+### The result!
+
+![Core Tree](core_tree.png)
 
 ## UNDER CONSTRUCTION 
